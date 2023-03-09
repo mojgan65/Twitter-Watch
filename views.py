@@ -50,7 +50,6 @@ def create_tweet_list(request):
     if ser.is_valid():
         ser.save()
         return Response(ser.data, status=status.HTTP_201_CREATED)
-        # return Response(ser.data, status=status.HTTP_201_CREATED)
     else:
         return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -133,9 +132,26 @@ def get_accounts(request):
 @api_view(['GET'])
 @permission_classes((AllowAny,))
 def get_tweets(request,id):
-    tweets = Tweet.objects.filter(id=id)
-    if tweet:
-        serializer = TweetSerializer(tweets, many=True)
+    tweet_thread = []
+
+    tweets = Tweet.objects.filter(user_id=id)
+    if tweets:
+        for tweet in tweets:
+            conversation_id = tweet.conversation_id
+            tweets_replies = Tweet.objects.filter(conversation_id=conversation_id, user_id=id)
+            if tweets_replies:
+                tweet_reply = {
+                    'id': tweet.id,
+                    'conversation_id': tweet.conversation_id,
+                    'date': tweet.date,
+                    'text': tweet.text,
+                    'user_id': tweet.user_id,
+                    'username': tweet.username,
+                    'replies': tweets_replies
+                }
+                tweet_thread.append(tweet_reply)
+
+        serializer = TweetRepliesSerializer(tweet_thread, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     else:
         return Response(status=status.HTTP_404_NOT_FOUND)
@@ -147,25 +163,27 @@ def get_audience(request, id):
     tweet_thread = []
 
     # Retrieve all tweets for the user
-    tweets = Tweet.objects.filter(id=id)
+    tweets = Tweet.objects.filter(user_id=id)
+    if tweets:
+        for tweet in tweets:
+            conversation_id = tweet.conversation_id
+            tweets_replies = Tweet.objects.filter(conversation_id=conversation_id)
+            if tweets_replies:
+                tweet_reply = {
+                    'id': tweet.id,
+                    'conversation_id' : tweet.conversation_id,
+                    'date' : tweet.date,
+                    'text': tweet.text,
+                    'user_id': tweet.user_id,
+                    'username': tweet.username,
+                    'replies': tweets_replies
+                }
+                tweet_thread.append(tweet_reply)
 
-    for tweet in tweets:
-        conversation_id = tweet.conversation_id
-        tweets_replies = Tweet.objects.filter(conversation_id=conversation_id)
-        if tweets_replies:
-            tweet_reply = {
-                'id': tweet.id,
-                'conversation_id' : tweet.conversation_id,
-                'date' : tweet.date,
-                'text': tweet.text,
-                'user_id': tweet.user_id,
-                'username': tweet.username,
-                'replies': tweets_replies
-            }
-            tweet_thread.append(tweet_reply)
-
-    serializer = TweetRepliesSerializer(tweet_thread, many=True)
-    return Response(serializer.data)
+        serializer = TweetRepliesSerializer(tweet_thread, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    else:
+        return Response(status=status.HTTP_404_NOT_FOUND)
 
 
 @api_view(['GET'])
@@ -177,7 +195,7 @@ def get_sentiment(request, id):
     sia = SentimentIntensityAnalyzer()
 
     # Retrieve all tweets for the user
-    tweets = Tweet.objects.filter(id=id)
+    tweets = Tweet.objects.filter(user_id=id)
     #
     if tweets:
         for tweet in tweets:
@@ -209,7 +227,6 @@ def get_sentiment(request, id):
             }
             tweet_thread.append(tweet_sentiment)
 
-        # serializer = TweetRepliesSerializer(tweet_thread, many=True)
         serializer = TweetSentimentSerializer(tweet_thread, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     else:
@@ -253,11 +270,3 @@ def get_account_sentiment(request, username):
         return Response(data=response, status=status.HTTP_201_CREATED)
     else:
         return Response(status=status.HTTP_404_NOT_FOUND)
-
-
-
-
-
-
-
-
