@@ -4,12 +4,12 @@ import pandas as pd
 usernames = ["elonmusk", "BarackObama","cathiedwood"]
 dataframes = []
 
-for i in range(26, 31, 2):
+for i in range(7, 11, 2):
     for username in usernames:
         config = twint.Config()
         # config.Limit = 10
-        config.Since = '2023-02-'+str(i)
-        config.Until= '2023-02-'+str(i+1)
+        config.Since = '2023-03-'+str(i)
+        config.Until= '2023-03-'+str(i+1)
         # config.Popular_tweets = True
         config.Pandas = True
         config.Store_csv = True
