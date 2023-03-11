@@ -5,7 +5,6 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView, status
 from rest_framework.response import Response
-from twint.tweet import tweet
 
 from .models import Tweet, Account, TweetSentiment, TweetSentimentReply
 from .serializer import TweetSerializer, TweetRepliesSerializer, AccountSerializer, TweetSentimentSerializer
@@ -15,7 +14,7 @@ import pandas as pd
 import nltk
 from nltk.sentiment import SentimentIntensityAnalyzer
 
-from summarizer import TransformerSummarizer
+# from summarizer import TransformerSummarizer
 
 
 # Configure
@@ -23,80 +22,93 @@ usernames = ["elonmusk", "BarackObama", "cathiedwood"]
 dataframes = []
 
 
-@api_view(['POST','GET'])
+@api_view(['GET'])
 @permission_classes((AllowAny, ))
 def create_tweet_list(request):
 
     tweets_data = []
 
-    with open('twitter/concatenated_file.csv', encoding='utf-8') as csvfile:
+    with open('twitter/concatenated_mixed.csv', encoding='utf-8') as csvfile:
     # with open('twitter/tweets.csv', encoding='utf-8') as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-
-            tweet_data = {
-                'id': row['id'],
-                'conversation_id': row['conversation_id'],
-                'date': row['date'],
-                'text': row['tweet'],
-                'language': row['language'],
-                'user_id': row['user_id'],
-                'username': row['username'],
-                'nlikes': row['nlikes'],
-                'nreplies': row['nreplies'],
-                'nretweet': row['nretweets'],
-            }
-            tweets_data.append(tweet_data)
+            Tweet.objects.update_or_create(
+                id=row['id'],
+                conversation_id=row['conversation_id'],
+                date=row['date'],
+                text=row['tweet'],
+                language=row['language'],
+                user_id=row['user_id'],
+                username=row['username'],
+                nlikes=row['nlikes'],
+                nreplies=row['nreplies'],
+                nretweet=row['nretweets'],
+            )
 
     # Serialize the tweets_data list and return it as a response
     ser = TweetSerializer(data=tweets_data, many=True)
     if ser.is_valid():
-        ser.save()
+        # ser.save()
         return Response(ser.data, status=status.HTTP_201_CREATED)
     else:
         return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(['GET'])
+@permission_classes((AllowAny, ))
+def update_tweet(request):
+    tweets_thread = []
+    tweet = Tweet.objects.latest('lastupdate')
+    lastupdate = tweet.lastupdate
 
-def UpdateTweets():
-    lastupdate = Tweet.objects.latest('lastupdate')
+    now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    if tweet:
+        for username in usernames:
+            config = twint.Config()
+            config.Since = lastupdate.strftime('%Y-%m-%d %H:%M:%S')
+            config.Until = now
+            config.Pandas = True
+            config.Store_csv = True
+            config.Lang = 'en'
+            config.To = username
+            # config.Username = username
+            # Run
+            twint.run.Search(config)
 
-    for username in usernames:
-        config = twint.Config()
-        config.Since = lastupdate.strftime('%Y-%m-%d')
-        config.Until = datetime.date.today().strftime('%Y-%m-%d')
-        config.Pandas = True
-        config.Store_csv = True
-        config.Lang = 'en'
-        config.To = username
-        # config.Username = username
-        # Run
-        twint.run.Search(config)
+            df = twint.storage.panda.Tweets_df
 
-        df = twint.storage.panda.Tweets_df
+            # Add the DataFrame to the list
+            dataframes.append(df)
 
-        # Add the DataFrame to the list
-        dataframes.append(df)
+        # Concatenate the DataFrames for each account into a single DataFrame
+        all_tweets_df = pd.concat(dataframes, ignore_index=True)
+        if all_tweets_df.size != 0:
+            all_tweets_df.to_csv("all_replies_tweets_"+str(datetime.date.today().strftime('%Y-%m-%d'))+".csv", index=False)
 
-    # Concatenate the DataFrames for each account into a single DataFrame
-    all_tweets_df = pd.concat(dataframes, ignore_index=True)
-
-    if all_tweets_df.isnull:
-        return Response({'message': 'No more tweets to process.'}, status=400)
-
-    for row in all_tweets_df:
-        tweet = Tweet.objects.update_or_create(
-            id=row['id'],
-            conversation_id=row['conversation_id'],
-            date=row['date'],
-            text=row['text'],
-            language=row['language'],
-            user_id=row['user_id'],
-            username=row['username'],
-            nlikes=row['nlikes'],
-            nreplies=row['nreplies'],
-            nretweet=row['nretweet'],
-        )
+            for row in all_tweets_df:
+                tweet = Tweet.objects.update_or_create(
+                    id=row['id'],
+                    conversation_id=row['conversation_id'],
+                    date=row['date'],
+                    text=row['tweet'],
+                    language=row['language'],
+                    user_id=row['user_id'],
+                    username=row['username'],
+                    nlikes=row['nlikes'],
+                    nreplies=row['nreplies'],
+                    nretweet=row['nretweets'],
+                )
+                tweets_thread.append(tweet)
+            # Serialize the tweets_data list and return it as a response
+            ser = TweetSerializer(data=tweets_thread, many=True)
+            if ser.is_valid():
+                return Response(ser.data, status=status.HTTP_201_CREATED)
+            else:
+                return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({'message': 'No one has tweeted since the last time'}, status=status.HTTP_204_NO_CONTENT)
+    else:
+        return Response({'message': 'No one has tweeted since the last time'}, status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['POST','GET'])
@@ -295,11 +307,3 @@ def get_account_summary(request, username):
         return Response(response, status=status.HTTP_200_OK)
     else:
         return Response(status=status.HTTP_404_NOT_FOUND)
-
-
-
-
-
-
-
-
