@@ -15,6 +15,9 @@ import pandas as pd
 import nltk
 from nltk.sentiment import SentimentIntensityAnalyzer
 
+from summarizer import TransformerSummarizer
+
+
 # Configure
 usernames = ["elonmusk", "BarackObama", "cathiedwood"]
 dataframes = []
@@ -268,5 +271,27 @@ def get_account_sentiment(request, username):
         }
 
         return Response(data=response, status=status.HTTP_201_CREATED)
+    else:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET'])
+@permission_classes((AllowAny,))
+def get_account_summary(request, username):
+    model = TransformerSummarizer(transformer_type="XLNet", transformer_model_key="xlnet-base-cased")
+
+    tweets = Tweet.objects.filter(username=username)
+    total_tweet = ''
+    if tweets:
+        for tweet in tweets:
+            total_tweet = total_tweet + ' ' + tweet.text
+        summary = ''.join(model(total_tweet, min_length=10, max_length=200))
+
+        response = {
+            'account': username,
+            'summary': summary
+        }
+
+        return Response(response, status=status.HTTP_200_OK)
     else:
         return Response(status=status.HTTP_404_NOT_FOUND)
