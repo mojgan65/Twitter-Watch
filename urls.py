@@ -10,5 +10,5 @@ urlpatterns = [
     path('sentiment/<int:id>/', v.get_sentiment),
     path('sentiment-account/<str:username>/', v.get_account_sentiment),
     path('summary/<str:username>/', v.get_account_summary)
-
+    path('update/', v.update_tweet)
 ]
